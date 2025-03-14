@@ -1,5 +1,9 @@
 import express, { Request, Response } from 'express';
 import { initializeEmbeddings, searchSimilarDocuments } from './services/searchService';
+import { analyzeSearchResults } from './services/geminiService';
+import { config } from 'dotenv';
+
+config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,24 +25,44 @@ app.post('/search', async (req: Request, res: Response): Promise<any> => {
       });
     }
     
-    // * Precisão mínima em 48%
-    const threshold = 0.48;
+    const threshold = 0.5;
     const results = await searchSimilarDocuments(query, threshold);
-    
-    const allResults = await searchSimilarDocuments(query, 0);
     
     if (results.length === 0) {
       return res.json({
-        message: `Não encontrei resultados relevantes com precisão acima de ${threshold * 100}%.`,
-        results: [],
-        allResults: allResults.slice(0, 5)
+        message: `Não encontrei resultados relevantes para sua pergunta.`,
+        query,
+        results: []
       });
+    }
+    
+    if (results.length > 0) {
+      try {
+        const geminiAnalysis = await analyzeSearchResults(query, results);
+        
+        return res.json({
+          message: "Resultados analisados com IA.",
+          query,
+          bestAnswer: geminiAnalysis.bestAnswer,
+          explanation: geminiAnalysis.explanation,
+          confidence: geminiAnalysis.confidence,
+          rawResults: results
+        });
+      } catch (geminiError: any) {
+        console.warn('Erro na análise do Gemini, retornando resultados brutos:', geminiError.message);
+        return res.json({
+          message: "Resultados encontrados com base na sua pergunta (sem análise IA).",
+          query,
+          results,
+          error: geminiError.message
+        });
+      }
     }
     
     return res.json({
       message: "Resultados encontrados com base na sua pergunta.",
-      results,
-      query
+      query,
+      results
     });
   } catch (error: any) {
     console.error('Erro na busca:', error);
@@ -53,16 +77,22 @@ const startServer = async () => {
   try {
     await initializeEmbeddings();
     
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn('⚠️ AVISO: GEMINI_API_KEY não está definida! A análise avançada de resultados não funcionará.');
+    } else {
+      console.log('✅ Integração com Gemini API configurada.');
+    }
+    
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`✅ Servidor rodando na porta ${PORT}`);
     });
   } catch (error) {
-    console.error('Erro ao inicializar embeddings:', error);
+    console.error('❌ Erro ao inicializar embeddings:', error);
     process.exit(1);
   }
 };
 
 startServer().catch(err => {
-  console.error('Erro ao iniciar o servidor:', err);
+  console.error('❌ Erro ao iniciar o servidor:', err);
   process.exit(1);
 });

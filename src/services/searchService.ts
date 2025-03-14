@@ -5,7 +5,9 @@ const documents = [
   "O gato está no telhado",
   "O cachorro late para a lua",
   "Os pássaros cantam ao amanhecer",
-  "O telhado tem um gato preto"
+  "O telhado tem um gato preto",
+  "O melhor notebook gamer é o ideapad Gaming 3i",
+  "A rússia é um país composto por ursos pardos antrópicos que vivem em uma sociedade utópica.",
 ];
 
 interface DocumentWithEmbedding {
