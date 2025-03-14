@@ -30,9 +30,8 @@ app.post('/search', async (req: Request, res: Response): Promise<any> => {
     
     if (results.length === 0) {
       return res.json({
-        message: `Não encontrei resultados relevantes para sua pergunta.`,
-        query,
-        results: []
+        message: `Não encontrei nenhuma informação sobre isso em meus dados.`,
+        query
       });
     }
     
@@ -41,29 +40,23 @@ app.post('/search', async (req: Request, res: Response): Promise<any> => {
         const geminiAnalysis = await analyzeSearchResults(query, results);
         
         return res.json({
-          message: "Resultados analisados com IA.",
+          message: geminiAnalysis.naturalResponse,
           query,
-          bestAnswer: geminiAnalysis.bestAnswer,
-          explanation: geminiAnalysis.explanation,
-          confidence: geminiAnalysis.confidence,
+          relevantResults: geminiAnalysis.relevantResults,
           rawResults: results
         });
       } catch (geminiError: any) {
-        console.warn('Erro na análise do Gemini, retornando resultados brutos:', geminiError.message);
+        console.warn('Erro na análise do Gemini, retornando resposta simplificada:', geminiError.message);
+        
+        const simplifiedResponse = `Com base nos dados fornecidos, encontrei estas informações: ${results.map(r => r.text).join('; ')}`;
+        
         return res.json({
-          message: "Resultados encontrados com base na sua pergunta (sem análise IA).",
+          message: simplifiedResponse,
           query,
-          results,
-          error: geminiError.message
+          relevantResults: results.map(r => r.text)
         });
       }
     }
-    
-    return res.json({
-      message: "Resultados encontrados com base na sua pergunta.",
-      query,
-      results
-    });
   } catch (error: any) {
     console.error('Erro na busca:', error);
     return res.status(500).json({ 

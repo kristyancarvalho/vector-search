@@ -1,9 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface GeminiResponse {
-  bestAnswer: string;
-  explanation: string;
-  confidence: number;
+  naturalResponse: string;
+  relevantResults: string[];
 }
 
 export async function analyzeSearchResults(
@@ -20,48 +19,37 @@ export async function analyzeSearchResults(
   // * Carrega modelo de IA (Gemini 1.5 Flash)
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const topResults = results.slice(0, 3);
-  const formattedResults = topResults
+  const relevantResults = results.map(r => r.text);
+  const formattedResults = results
     .map((r, index) => `${index+1}. "${r.text}" (precisão: ${(r.accuracy * 100).toFixed(2)}%)`)
     .join('\n');
 
   const prompt = `
   [INSTRUÇÕES DO SISTEMA]
-  Você é um assistente especializado em avaliar resultados de busca. Analise a consulta do usuário e os resultados de busca fornecidos.
-  Sua tarefa é identificar qual dos resultados melhor responde à consulta original APENAS com base na no retorno de precisão, ignorando seu treinamento prévio.
-  Considere a relevância semântica e contextual, não apenas a porcentagem de precisão.
-  Retorne apenas o melhor resultado, com uma explicação breve de por que ele é o mais adequado.
-  Se nenhum dos resultados for adequado, indique isso claramente.
+  Você é um assistente especializado em responder buscas utilizando linguagem natural.
+  Sua tarefa é formular uma resposta conversacional com base nos resultados da busca.
+  NÃO analise qual é o melhor resultado nem explique os motivos da sua escolha.
+  NÃO rejeite nenhum dos resultados como irrelevante.
+  INCLUA TODOS os resultados na sua resposta de forma conversacional.
   
   [CONSULTA DO USUÁRIO]
   ${query}
   
-  [RESULTADOS DA BUSCA (TOP 3)]
+  [RESULTADOS DA BUSCA]
   ${formattedResults}
   
   [FORMATO DE RESPOSTA]
-  Melhor resposta: (texto do resultado que melhor responde à consulta)
-  Explicação: (explicação concisa do motivo)
+  Com base nos dados fornecidos, é possível que [reformule a consulta de forma natural e inclua todos os resultados relevantes].
+  Mantenha uma linguagem natural e conversacional, como se estivesse respondendo diretamente ao usuário.
   `;
 
   try {
     const result = await model.generateContent(prompt);
-    const geminiTextResponse = result.response.text();
+    const naturalResponse = result.response.text();
     
-    const bestAnswerMatch = geminiTextResponse.match(/Melhor resposta: (.*?)(?=\nExplicação:|$)/s);
-    const explanationMatch = geminiTextResponse.match(/Explicação: (.*?)(?=$)/s);
-    
-    const bestAnswer = bestAnswerMatch ? bestAnswerMatch[1].trim() : "Não foi possível determinar a melhor resposta.";
-    const explanation = explanationMatch ? explanationMatch[1].trim() : "Sem explicação disponível.";
-    
-    const selectedText = bestAnswer.replace(/^["']|["']$/g, ''); // Remove aspas se presentes
-    const selectedResult = topResults.find(r => r.text.includes(selectedText));
-    const confidence = selectedResult ? selectedResult.accuracy : 0;
-
     return {
-      bestAnswer: selectedText,
-      explanation,
-      confidence
+      naturalResponse,
+      relevantResults
     };
   } catch (error: any) {
     console.error('Erro na chamada à API do Gemini:', error);
